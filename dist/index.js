@@ -70,7 +70,7 @@
     bg(pinBlock, "green");
     fullWidth(pinBlock);
     const pinCircle = div();
-    if (type == "input") {
+    if (type == "output") {
       Object.assign(pinCircle.style, {
         width: "7px",
         height: "7px",
@@ -148,7 +148,7 @@
   var node = createNode({ x: 10, y: 10 });
   setInitialNodeTransform(node);
   nodes.push(node);
-  pin1 = addPin(node);
+  pin1 = addPin(node, "input");
   pin2 = addPin(node, "input");
   var node2 = createNode({ x: 100, y: 100 });
   setInitialNodeTransform(node2);
@@ -158,14 +158,12 @@
   function makeDraggableCanvas() {
     let isCanvasDragging = false;
     let startX, startY;
-    const canvas = document.getElementById("app");
-    const container = document.getElementById("app");
-    canvas.addEventListener("mousedown", startCanvasDrag);
-    canvas.addEventListener("mousemove", dragCanvas);
-    canvas.addEventListener("mouseup", endCanvasDrag);
-    canvas.addEventListener("wheel", zoom);
+    document.addEventListener("mousedown", startCanvasDrag);
+    document.addEventListener("mousemove", dragCanvas);
+    document.addEventListener("mouseup", endCanvasDrag);
+    document.addEventListener("wheel", zoom);
     function startCanvasDrag(e) {
-      if (e.target === canvas) {
+      if (e.target === document.documentElement) {
         isCanvasDragging = true;
         startX = e.clientX;
         startY = e.clientY;
