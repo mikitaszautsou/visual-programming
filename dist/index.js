@@ -50,9 +50,9 @@
     }
     function drag(e) {
       if (!isDragging) return;
-      node3.x = e.clientX - startX;
-      node3.y = e.clientY - startY;
-      nodeWrapper.style.transform = `translate(${node3.x}px, ${node3.y}px)`;
+      node3.x = (e.clientX - startX) / globalZoom;
+      node3.y = (e.clientY - startY) / globalZoom;
+      nodeWrapper.style.transform = `translate(${(globalPosition.x + node3.x) * globalZoom}px, ${(globalPosition.y + node3.y) * globalZoom}px) scale(${globalZoom})`;
       updateAllConnections();
       e.stopPropagation();
     }
@@ -130,6 +130,10 @@
     const y2 = rect2.top + rect2.height / 2;
     const pathD = `M ${x1} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2} ${y2}`;
     path.setAttribute("d", pathD);
+    path.style.strokeWidth = 2 * globalZoom;
+  }
+  function setInitialNodeTransform(node3) {
+    node3.element.style.transform = `translate(${(globalPosition.x + node3.x) * globalZoom}px, ${(globalPosition.y + node3.y) * globalZoom}px) scale(${globalZoom})`;
   }
   function updateAllConnections() {
     connections.forEach(updateConnection);
@@ -139,12 +143,15 @@
     x: 0,
     y: 0
   };
+  var globalZoom = 1;
   var nodes = [];
   var node = createNode({ x: 10, y: 10 });
+  setInitialNodeTransform(node);
   nodes.push(node);
   pin1 = addPin(node);
   pin2 = addPin(node, "input");
   var node2 = createNode({ x: 100, y: 100 });
+  setInitialNodeTransform(node2);
   nodes.push(node2);
   pin3 = addPin(node2);
   connectPins(pin1.pinCircle, pin3.pinCircle, "black");
@@ -152,9 +159,11 @@
     let isCanvasDragging = false;
     let startX, startY;
     const canvas = document.getElementById("app");
+    const container = document.getElementById("app");
     canvas.addEventListener("mousedown", startCanvasDrag);
     canvas.addEventListener("mousemove", dragCanvas);
     canvas.addEventListener("mouseup", endCanvasDrag);
+    canvas.addEventListener("wheel", zoom);
     function startCanvasDrag(e) {
       if (e.target === canvas) {
         isCanvasDragging = true;
@@ -170,15 +179,27 @@
       startY = e.clientY;
       globalPosition.x += deltaX;
       globalPosition.y += deltaY;
-      nodes.forEach((n) => {
-        n.x += deltaX;
-        n.y += deltaY;
-        n.element.style.transform = `translate(${n.x}px, ${n.y}px)`;
-      });
-      updateAllConnections();
+      updateNodesPosition();
     }
     function endCanvasDrag() {
       isCanvasDragging = false;
+    }
+    function zoom(e) {
+      e.preventDefault();
+      const delta = e.deltaY;
+      const zoomFactor = 0.1;
+      if (delta > 0) {
+        globalZoom = Math.max(0.1, globalZoom - zoomFactor);
+      } else {
+        globalZoom += zoomFactor;
+      }
+      updateNodesPosition();
+    }
+    function updateNodesPosition() {
+      nodes.forEach((n) => {
+        n.element.style.transform = `translate(${(globalPosition.x + n.x) * globalZoom}px, ${(globalPosition.y + n.y) * globalZoom}px) scale(${globalZoom})`;
+      });
+      updateAllConnections();
     }
   }
   makeDraggableCanvas();
