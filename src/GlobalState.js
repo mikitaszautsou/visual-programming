@@ -1,3 +1,5 @@
+import { Pin } from "./Pin";
+
 class GlobalState {
     connections = [];
     globalPosition = {
@@ -8,6 +10,8 @@ class GlobalState {
     nodes = []
     draggingPin = null
     tempPath = null
+     /** @type {Array<Pin>} */
+    pins = []
     
 }
 

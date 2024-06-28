@@ -56,14 +56,13 @@ function connectElements(element1, element2, color = 'black', thickness = 2) {
 
 
 
-class ScriptBlock {
+class ScriptBlock extends ExecutionNode {
 
     _nodeValue = null
     _textarea = null
     constructor() {
-        const node = new ExecutionNode()
-        this.node = node;
-        this.node.changeStauts('new')
+        super()
+        this.changeStauts('new')
 
         // Create textarea
         const textarea = document.createElement('textarea');
@@ -72,7 +71,7 @@ class ScriptBlock {
         textarea.style.margin = '5px';
         textarea.style.resize = 'none';
         this._textarea = textarea
-        node._htmlElement.appendChild(textarea);
+        this._htmlElement.appendChild(textarea);
 
         // Store reference to textarea
         this.textarea = textarea;
@@ -85,16 +84,18 @@ class ScriptBlock {
         // node.element.appendChild(executeButton);
 
         // Add output pin
-        node.addPin('output');
+        this.addPin('output');
 
         // Adjust node size
-        node._htmlElement.style.width = '150px';
-        node._htmlElement.style.height = 'auto';
-        node.onExecution(async () => {
-            node.changeStauts('progress')
-            this._nodeValue = await Utils.executePythonCode(`${this.textarea.value}\nprint('ok')`)
-            node.changeStauts('success')
-        })
+        this._htmlElement.style.width = '150px';
+        this._htmlElement.style.height = 'auto';
+    }   
+    async execute() {
+        this.changeStauts('progress')
+        this._nodeValue = await Utils.executePythonCode(`${this.textarea.value}\nprint('ok')`)
+
+        this.propagateValue(this._nodeValue)
+        this.changeStauts('success')
     }
     async getNodeValue() {
         if (this._nodeValue == null) {

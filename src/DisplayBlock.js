@@ -1,21 +1,20 @@
 import { ExecutionNode } from "./ExecutionNode";
 import { Utils } from "./Utils";
 
-export class DisplayBlock {
+export class DisplayBlock extends ExecutionNode {
 
     _nodeValue = null
     _displayBlock = null
     _target = null
     constructor() {
-        const node = new ExecutionNode('display')
-        this.node = node;
-        this.node.changeStauts('new')
+        super()
+        this.changeStauts('new')
 
 
         const configureButton = document.createElement('button');
         configureButton.textContent = 'C'
 
-        this.node._titleElement.appendChild(configureButton)
+        this._titleElement.appendChild(configureButton)
         configureButton.addEventListener('click', () => {
             this._target = prompt('Targt')
             console.log(this._target)
@@ -29,7 +28,7 @@ export class DisplayBlock {
         this._displayBlock.style.display = 'flex'
         this._displayBlock.style.alignItems = 'center'
         this._displayBlock.style.background = 'white'
-        node._htmlElement.appendChild(this._displayBlock);
+        this._htmlElement.appendChild(this._displayBlock);
 
         // Store reference to textarea
 
@@ -38,26 +37,28 @@ export class DisplayBlock {
         // executeButton.textContent = 'Execute';
         // executeButton.style.margin = '5px';
         // executeButton.addEventListener('click', () => this.execute());
-        // node.element.appendChild(executeButton);
+        // this.element.appendChild(executeButton);
 
         // Add output pin
-        node.addPin('input', 'input');
+        this.addPin('input', 'input');
 
         // Adjust node size
-        node._htmlElement.style.width = '150px';
-        node._htmlElement.style.height = 'auto';
-        node.onExecution(async () => {
-            node.changeStauts('progress')
-            this._nodeValue = await Utils.executePythonCode(`${this.textarea.value}\nprint('ok')`)
-            node.changeStauts('success')
-        })
+        this._htmlElement.style.width = '150px';
+        this._htmlElement.style.height = 'auto';
+
     }
     async getNodeValue() {
-        if (this._nodeValue == null) {
-            this._nodeValue = Utils.executePythonCode(this.textarea.value)
-        }
-        return this._nodeValue
+        
 
+    }
+
+    async execute() {
+        const { _displayBlock } = this;
+        this.changeStauts('progress')
+        const inputPin = this._pins.find(p => p.type === 'input')
+        const value = inputPin.value
+        _displayBlock.textContent = value
+        this.changeStauts('success')
     }
 
 }

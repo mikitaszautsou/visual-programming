@@ -1,3 +1,4 @@
+import { Connection } from "./Connection";
 import { globalState } from "./GlobalState";
 
 export class Utils {
@@ -105,22 +106,22 @@ export class Utils {
         const pinCircle = document.createElement('div')
         if (type == 'output') {
             Object.assign(pinCircle.style, {
-                width: '7px',
-                height: '7px',
+                width: '10px',
+                height: '10px',
                 background: 'blue',
                 position: 'absolute',
-                right: '-2.5px',
+                right: '-5px',
                 top: '50%',
                 borderRadius: "50%",
                 transform: 'translateY(-50%)'
             })
         } else {
             Object.assign(pinCircle.style, {
-                width: '7px',
-                height: '7px',
+                width: '10px',
+                height: '10px',
                 background: 'blue',
                 position: 'absolute',
-                left: '-2.5px',
+                left: '-10px',
                 top: '50%',
                 borderRadius: "50%",
                 transform: 'translateY(-50%)'
@@ -179,6 +180,12 @@ export class Utils {
         globalState.connections.push(connection);
         Utils.updateConnection(connection);
     
+        const pin1Obj = globalState.pins.find(p => p._htmlElement === pin1)
+        const pin2Obj = globalState.pins.find(p => p._htmlElement === pin2)
+        const connectionObj = new Connection(pin1Obj, pin2Obj, connection.path)
+        pin1Obj.connections.push(connectionObj)
+        pin2Obj.connections.push(connectionObj)
+
         return pathElement;
     }
     

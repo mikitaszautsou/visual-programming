@@ -1,12 +1,16 @@
 import { Blocks } from "./Blocks"
+import { Connection } from "./Connection"
+import { Pin } from "./Pin"
 import { Utils } from "./Utils"
 
 export class ExecutionNode {
     _position = null
     _htmlElement = null
     _titleElement = null
+    /**
+     * @type {Array<Pin>}
+     */
     _pins = []
-    _listeners = []
     constructor(title = 'unknown') {
         const node = Blocks.createNode({ x: 10, y: 10, title: title})
         this._position = { x: node.x, y: node.y }
@@ -16,9 +20,7 @@ export class ExecutionNode {
         let buttonElement = document.createElement('button');
         buttonElement.textContent = 'e'
         buttonElement.addEventListener('click', () => {
-            this._listeners.forEach(l => {
-                l()
-            })
+            this.execute()
         })
         this._titleElement.style.width = '100%'
         this._titleElement.appendChild(buttonElement)
@@ -33,10 +35,36 @@ export class ExecutionNode {
             this._htmlElement.style.background = '#F4A261'
         }
     }
+    async execute() {
+        throw new Error('not implemented')
+    }
+    /**
+     * 
+     * @typedef {'input' | 'output'} SortOrder
+     * @param {SortOrder} type 
+     * @param {string} title
+     */
     addPin(type, title = 'pin') {
-        Utils.addPin({ element: this._htmlElement }, type, title)
+        this._pins.push(new Pin(this, title, type))
     }   
-    onExecution(listener) {
-        this._listeners.push(listener)
+    async onExecution() {
+        await this.execute()
+    }
+
+    setPinsValue(value) {
+        this._pins.filter(p=> p.type ==='output').forEach(p => {
+            p.value = value
+        })
+    }
+
+    async propagateValue(value) {
+        this.setPinsValue(value)
+        for await (const pin of this._pins.filter(p=> p.type ==='output')) {
+            for await (const connection of pin.connections) {
+                connection.to.value = pin.value
+
+                await connection.to.ownerNode.execute()
+            }
+        }
     }
 }
