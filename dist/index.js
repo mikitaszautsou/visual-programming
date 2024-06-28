@@ -1,160 +1,346 @@
 (() => {
-  // src/index.js
-  var div = () => {
-    return document.createElement("div");
+  // src/GlobalState.js
+  var GlobalState = class {
+    connections = [];
+    globalPosition = {
+      x: 0,
+      y: 0
+    };
+    globalZoom = 1;
+    nodes = [];
+    draggingPin = null;
+    tempPath = null;
   };
-  var flex = (element) => {
-    element.style.display = "flex";
-  };
-  var relative = (element) => {
-    element.style.position = "relative";
-  };
-  var justifyCenter = (element) => {
-    element.style.justifyContent = "center";
-  };
-  var bg = (element, color) => {
-    element.style.background = color;
-  };
-  var fullWidth = (element) => {
-    element.style.width = "100%";
-  };
-  function createNode({ x, y }) {
-    const container = document.getElementById("app");
-    const nodeWrapper = document.createElement("div");
-    nodeWrapper.style.background = "red";
-    nodeWrapper.style.position = "absolute";
-    nodeWrapper.style.transform = `translate(${x}px, ${y}px)`;
-    nodeWrapper.style.display = `flex`;
-    nodeWrapper.style.flexDirection = `column`;
-    nodeWrapper.style.alignItems = "center";
-    const title = document.createElement("div");
-    title.textContent = "Title";
-    flex(title);
-    justifyCenter(title);
-    title.style.cursor = "move";
-    nodeWrapper.appendChild(title);
-    nodeWrapper.style.width = "100px";
-    nodeWrapper.style.height = "120px";
-    container.appendChild(nodeWrapper);
-    const node3 = { x, y, element: nodeWrapper, pins: [] };
-    let isDragging = false;
-    let startX, startY;
-    title.addEventListener("mousedown", startDrag);
-    document.addEventListener("mousemove", drag);
-    document.addEventListener("mouseup", endDrag);
-    function startDrag(e) {
-      isDragging = true;
-      startX = e.clientX - node3.x;
-      startY = e.clientY - node3.y;
-      e.preventDefault();
+  var globalState = new GlobalState();
+
+  // src/Utils.js
+  var Utils = class _Utils {
+    static async executePythonCode(value) {
+      const response = await fetch("http://localhost:3000", {
+        method: "POST",
+        body: value,
+        headers: {
+          "Content-Type": "text/plain"
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.text();
     }
-    function drag(e) {
-      if (!isDragging) return;
-      node3.x = (e.clientX - startX) / globalZoom;
-      node3.y = (e.clientY - startY) / globalZoom;
-      nodeWrapper.style.transform = `translate(${(globalPosition.x + node3.x) * globalZoom}px, ${(globalPosition.y + node3.y) * globalZoom}px) scale(${globalZoom})`;
-      updateAllConnections();
+    static updateConnection(connection) {
+      const { pin1, pin2, path } = connection;
+      const rect1 = pin1.getBoundingClientRect();
+      const rect2 = pin2.getBoundingClientRect();
+      const x1 = rect1.left + rect1.width / 2;
+      const y1 = rect1.top + rect1.height / 2;
+      const x2 = rect2.left + rect2.width / 2;
+      const y2 = rect2.top + rect2.height / 2;
+      const pathD = `M ${x1} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2} ${y2}`;
+      path.setAttribute("d", pathD);
+      path.style.strokeWidth = 2 * globalState.globalZoom;
+    }
+    static createNode({ x, y, titleValue = "unknown" }) {
+      const container = document.getElementById("app");
+      const nodeWrapper = document.createElement("div");
+      nodeWrapper.style.background = "green";
+      nodeWrapper.style.position = "absolute";
+      nodeWrapper.style.transform = `translate(${x}px, ${y}px)`;
+      nodeWrapper.style.display = `flex`;
+      nodeWrapper.style.flexDirection = `column`;
+      nodeWrapper.style.alignItems = "center";
+      const title = document.createElement("div");
+      title.textContent = titleValue;
+      title.style.display = "flex";
+      title.style.justifyContent = "center";
+      title.style.cursor = "move";
+      nodeWrapper.appendChild(title);
+      nodeWrapper.style.width = "100px";
+      nodeWrapper.style.height = "120px";
+      container.appendChild(nodeWrapper);
+      const node = { x, y, element: nodeWrapper, titleElement: title, pins: [] };
+      let isDragging = false;
+      let startX, startY;
+      title.addEventListener("mousedown", startDrag);
+      document.addEventListener("mousemove", drag);
+      document.addEventListener("mouseup", endDrag);
+      function startDrag(e) {
+        isDragging = true;
+        startX = e.clientX - node.x;
+        startY = e.clientY - node.y;
+        e.preventDefault();
+      }
+      function drag(e) {
+        if (!isDragging) return;
+        node.x = (e.clientX - startX) / globalState.globalZoom;
+        node.y = (e.clientY - startY) / globalState.globalZoom;
+        nodeWrapper.style.transform = `translate(${(globalState.globalPosition.x + node.x) * globalState.globalZoom}px, ${(globalState.globalPosition.y + node.y) * globalState.globalZoom}px) scale(${globalState.globalZoom})`;
+        globalState.connections.forEach(_Utils.updateConnection);
+        e.stopPropagation();
+      }
+      function endDrag() {
+        isDragging = false;
+      }
+      return node;
+    }
+    static setInitialNodeTransform(node) {
+      const { globalPosition } = globalState;
+      node.element.style.transform = `translate(${(globalState.globalPosition.x + node.x) * globalState.globalZoom}px, ${(globalPosition.y + node.y) * globalState.globalZoom}px) scale(${globalState.globalZoom})`;
+    }
+    static addPin({ element: target }, type, title) {
+      const pinBlock = document.createElement("div");
+      pinBlock.textContent = title;
+      pinBlock.style.display = "flex";
+      pinBlock.style.position = "relative";
+      pinBlock.style.justifyCenter = "center";
+      pinBlock.style.width = "100%";
+      const pinCircle = document.createElement("div");
+      if (type == "output") {
+        Object.assign(pinCircle.style, {
+          width: "7px",
+          height: "7px",
+          background: "blue",
+          position: "absolute",
+          right: "-2.5px",
+          top: "50%",
+          borderRadius: "50%",
+          transform: "translateY(-50%)"
+        });
+      } else {
+        Object.assign(pinCircle.style, {
+          width: "7px",
+          height: "7px",
+          background: "blue",
+          position: "absolute",
+          left: "-2.5px",
+          top: "50%",
+          borderRadius: "50%",
+          transform: "translateY(-50%)"
+        });
+      }
+      pinBlock.appendChild(pinCircle);
+      pinCircle.classList.add("pin-circle");
+      pinCircle.addEventListener("mousedown", _Utils.startPinDrag);
+      target.appendChild(pinBlock);
+      return { pinBlock, pinCircle };
+    }
+    static startPinDrag(e) {
       e.stopPropagation();
+      globalState.draggingPin = e.target;
+      let svg = _Utils.getOrCreateSVG();
+      globalState.tempPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      globalState.tempPath.style.fill = "none";
+      globalState.tempPath.style.stroke = "black";
+      globalState.tempPath.style.strokeWidth = 2;
+      svg.appendChild(globalState.tempPath);
+      document.addEventListener("mousemove", _Utils.dragPin);
+      document.addEventListener("mouseup", _Utils.endPinDrag);
     }
-    function endDrag() {
-      isDragging = false;
+    static dragPin(e) {
+      if (!globalState.draggingPin) return;
+      const startRect = globalState.draggingPin.getBoundingClientRect();
+      const startX = startRect.left + startRect.width / 2;
+      const startY = startRect.top + startRect.height / 2;
+      const endX = e.clientX;
+      const endY = e.clientY;
+      const pathD = `M ${startX} ${startY} C ${(startX + endX) / 2} ${startY}, ${(startX + endX) / 2} ${endY}, ${endX} ${endY}`;
+      globalState.tempPath.setAttribute("d", pathD);
     }
-    return node3;
-  }
-  function addPin({ element: target }, type) {
-    const pinBlock = div();
-    pinBlock.textContent = "Pin";
-    flex(pinBlock);
-    relative(pinBlock);
-    justifyCenter(pinBlock);
-    bg(pinBlock, "green");
-    fullWidth(pinBlock);
-    const pinCircle = div();
-    if (type == "output") {
-      Object.assign(pinCircle.style, {
-        width: "7px",
-        height: "7px",
-        background: "blue",
-        position: "absolute",
-        right: "-2.5px",
-        top: "50%",
-        borderRadius: "50%",
-        transform: "translateY(-50%)"
-      });
-    } else {
-      Object.assign(pinCircle.style, {
-        width: "7px",
-        height: "7px",
-        background: "blue",
-        position: "absolute",
-        left: "-2.5px",
-        top: "50%",
-        borderRadius: "50%",
-        transform: "translateY(-50%)"
-      });
+    static connectPins(pin1, pin2, color = "black", thickness = 2) {
+      let svg = _Utils.getOrCreateSVG();
+      const pathElement = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      pathElement.style.fill = "none";
+      pathElement.style.stroke = color;
+      pathElement.style.strokeWidth = thickness;
+      svg.appendChild(pathElement);
+      const connection = { pin1, pin2, path: pathElement };
+      globalState.connections.push(connection);
+      _Utils.updateConnection(connection);
+      return pathElement;
     }
-    pinBlock.appendChild(pinCircle);
-    target.appendChild(pinBlock);
-    return { pinBlock, pinCircle };
-  }
-  function connectPins(pin12, pin22, color = "black", thickness = 2) {
-    let svg = document.getElementById("connector-svg");
-    if (!svg) {
-      svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      svg.id = "connector-svg";
-      svg.style.position = "absolute";
-      svg.style.top = "0";
-      svg.style.left = "0";
-      svg.style.width = "100%";
-      svg.style.height = "100%";
-      svg.style.pointerEvents = "none";
-      document.body.appendChild(svg);
+    static endPinDrag(e) {
+      if (!globalState.draggingPin) return;
+      const endPin = document.elementFromPoint(e.clientX, e.clientY);
+      if (endPin && endPin.classList.contains("pin-circle") && endPin !== globalState.draggingPin) {
+        _Utils.connectPins(globalState.draggingPin, endPin);
+      }
+      if (globalState.tempPath) {
+        globalState.tempPath.remove();
+        globalState.tempPath = null;
+      }
+      globalState.draggingPin = null;
+      document.removeEventListener("mousemove", _Utils.dragPin);
+      document.removeEventListener("mouseup", _Utils.endPinDrag);
     }
-    const pathElement = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    pathElement.style.fill = "none";
-    pathElement.style.stroke = color;
-    pathElement.style.strokeWidth = thickness;
-    svg.appendChild(pathElement);
-    const connection = { pin1: pin12, pin2: pin22, path: pathElement };
-    connections.push(connection);
-    updateConnection(connection);
-    return pathElement;
-  }
-  function updateConnection(connection) {
-    const { pin1: pin12, pin2: pin22, path } = connection;
-    const rect1 = pin12.getBoundingClientRect();
-    const rect2 = pin22.getBoundingClientRect();
-    const x1 = rect1.left + rect1.width / 2;
-    const y1 = rect1.top + rect1.height / 2;
-    const x2 = rect2.left + rect2.width / 2;
-    const y2 = rect2.top + rect2.height / 2;
-    const pathD = `M ${x1} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2} ${y2}`;
-    path.setAttribute("d", pathD);
-    path.style.strokeWidth = 2 * globalZoom;
-  }
-  function setInitialNodeTransform(node3) {
-    node3.element.style.transform = `translate(${(globalPosition.x + node3.x) * globalZoom}px, ${(globalPosition.y + node3.y) * globalZoom}px) scale(${globalZoom})`;
-  }
-  function updateAllConnections() {
-    connections.forEach(updateConnection);
-  }
-  var connections = [];
-  var globalPosition = {
-    x: 0,
-    y: 0
+    static getOrCreateSVG() {
+      let svg = document.getElementById("connector-svg");
+      if (!svg) {
+        svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.id = "connector-svg";
+        svg.style.position = "absolute";
+        svg.style.top = "0";
+        svg.style.left = "0";
+        svg.style.width = "100%";
+        svg.style.height = "100%";
+        svg.style.pointerEvents = "none";
+        document.body.appendChild(svg);
+      }
+      return svg;
+    }
   };
-  var globalZoom = 1;
-  var nodes = [];
-  var node = createNode({ x: 10, y: 10 });
-  setInitialNodeTransform(node);
-  nodes.push(node);
-  pin1 = addPin(node, "input");
-  pin2 = addPin(node, "input");
-  var node2 = createNode({ x: 100, y: 100 });
-  setInitialNodeTransform(node2);
-  nodes.push(node2);
-  pin3 = addPin(node2);
-  connectPins(pin1.pinCircle, pin3.pinCircle, "black");
+
+  // src/Blocks.js
+  var Blocks = class {
+    static createValueNode({ x, y, value }) {
+      const node = createNode({ x, y });
+    }
+    static createTableNode({ x, y }) {
+      const node = createNode({ x, y });
+      const table = document.createElement("table");
+      table.style.width = "100%";
+      table.style.borderCollapse = "collapse";
+      const rows = 3;
+      const cols = 3;
+      for (let i = 0; i < rows; i++) {
+        const row = table.insertRow();
+        for (let j = 0; j < cols; j++) {
+          const cell = row.insertCell();
+          cell.textContent = `${i + 1},${j + 1}`;
+          cell.style.border = "1px solid black";
+          cell.style.padding = "2px";
+          cell.style.textAlign = "center";
+        }
+      }
+      node.element.appendChild(table);
+      node.element.style.width = "auto";
+      node.element.style.height = "auto";
+      node.element.style.padding = "5px";
+      return node;
+    }
+    static createNode({ x, y, title }) {
+      const node = Utils.createNode({ x: 10, y: 10, titleValue: title });
+      Utils.setInitialNodeTransform(node);
+      globalState.nodes.push(node);
+      return node;
+    }
+  };
+
+  // src/ExecutionNode.js
+  var ExecutionNode = class {
+    _position = null;
+    _htmlElement = null;
+    _titleElement = null;
+    _pins = [];
+    _listeners = [];
+    constructor(title = "unknown") {
+      const node = Blocks.createNode({ x: 10, y: 10, title });
+      this._position = { x: node.x, y: node.y };
+      this._htmlElement = node.element;
+      this._titleElement = node.titleElement;
+      this._pins = node.pins;
+      let buttonElement = document.createElement("button");
+      buttonElement.textContent = "e";
+      buttonElement.addEventListener("click", () => {
+        this._listeners.forEach((l) => {
+          l();
+        });
+      });
+      this._titleElement.style.width = "100%";
+      this._titleElement.appendChild(buttonElement);
+    }
+    changeStauts(status) {
+      if (status === "success") {
+        this._htmlElement.style.background = "#0D9276";
+      } else if (status === "new") {
+        this._htmlElement.style.background = "#667BC6";
+      } else if (status === "progress") {
+        this._htmlElement.style.background = "#F4A261";
+      }
+    }
+    addPin(type, title = "pin") {
+      Utils.addPin({ element: this._htmlElement }, type, title);
+    }
+    onExecution(listener) {
+      this._listeners.push(listener);
+    }
+  };
+
+  // src/DisplayBlock.js
+  var DisplayBlock = class {
+    _nodeValue = null;
+    _displayBlock = null;
+    _target = null;
+    constructor() {
+      const node = new ExecutionNode("display");
+      this.node = node;
+      this.node.changeStauts("new");
+      const configureButton = document.createElement("button");
+      configureButton.textContent = "C";
+      this.node._titleElement.appendChild(configureButton);
+      configureButton.addEventListener("click", () => {
+        this._target = prompt("Targt");
+        console.log(this._target);
+      });
+      this._displayBlock = document.createElement("div");
+      this._displayBlock.style.width = "100px";
+      this._displayBlock.style.height = "100px";
+      this._displayBlock.textContent = "NOTHING";
+      this._displayBlock.style.justifyContent = "center";
+      this._displayBlock.style.display = "flex";
+      this._displayBlock.style.alignItems = "center";
+      this._displayBlock.style.background = "white";
+      node._htmlElement.appendChild(this._displayBlock);
+      node.addPin("input", "input");
+      node._htmlElement.style.width = "150px";
+      node._htmlElement.style.height = "auto";
+      node.onExecution(async () => {
+        node.changeStauts("progress");
+        this._nodeValue = await Utils.executePythonCode(`${this.textarea.value}
+print('ok')`);
+        node.changeStauts("success");
+      });
+    }
+    async getNodeValue() {
+      if (this._nodeValue == null) {
+        this._nodeValue = Utils.executePythonCode(this.textarea.value);
+      }
+      return this._nodeValue;
+    }
+  };
+
+  // src/index.js
+  var ScriptBlock = class {
+    _nodeValue = null;
+    _textarea = null;
+    constructor() {
+      const node = new ExecutionNode();
+      this.node = node;
+      this.node.changeStauts("new");
+      const textarea = document.createElement("textarea");
+      textarea.style.width = "90%";
+      textarea.style.height = "60px";
+      textarea.style.margin = "5px";
+      textarea.style.resize = "none";
+      this._textarea = textarea;
+      node._htmlElement.appendChild(textarea);
+      this.textarea = textarea;
+      node.addPin("output");
+      node._htmlElement.style.width = "150px";
+      node._htmlElement.style.height = "auto";
+      node.onExecution(async () => {
+        node.changeStauts("progress");
+        this._nodeValue = await Utils.executePythonCode(`${this.textarea.value}
+print('ok')`);
+        node.changeStauts("success");
+      });
+    }
+    async getNodeValue() {
+      if (this._nodeValue == null) {
+        this._nodeValue = Utils.executePythonCode(this.textarea.value);
+      }
+      return this._nodeValue;
+    }
+  };
   function makeDraggableCanvas() {
     let isCanvasDragging = false;
     let startX, startY;
@@ -175,8 +361,8 @@
       const deltaY = e.clientY - startY;
       startX = e.clientX;
       startY = e.clientY;
-      globalPosition.x += deltaX;
-      globalPosition.y += deltaY;
+      globalState.globalPosition.x += deltaX;
+      globalState.globalPosition.y += deltaY;
       updateNodesPosition();
     }
     function endCanvasDrag() {
@@ -194,12 +380,20 @@
       updateNodesPosition();
     }
     function updateNodesPosition() {
+      const { globalPosition, nodes } = globalState;
       nodes.forEach((n) => {
-        n.element.style.transform = `translate(${(globalPosition.x + n.x) * globalZoom}px, ${(globalPosition.y + n.y) * globalZoom}px) scale(${globalZoom})`;
+        n.element.style.transform = `translate(${(globalState.globalPosition.x + n.x) * globalState.globalZoom}px, ${(globalPosition.y + n.y) * globalState.globalZoom}px) scale(${globalState.globalZoom})`;
       });
-      updateAllConnections();
+      globalState.connections.forEach(Utils.updateConnection);
     }
   }
   makeDraggableCanvas();
+  var Main = class {
+    static main() {
+      new ScriptBlock();
+      new DisplayBlock();
+    }
+  };
+  Main.main();
   new EventSource("/esbuild").addEventListener("change", () => location.reload());
 })();
