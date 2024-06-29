@@ -62,7 +62,7 @@ class ScriptBlock extends ExecutionNode {
     _textarea = null
     constructor() {
         super()
-        this.changeStauts('new')
+        this.changeStatus('new')
 
         // Create textarea
         const textarea = document.createElement('textarea');
@@ -91,11 +91,11 @@ class ScriptBlock extends ExecutionNode {
         this._htmlElement.style.height = 'auto';
     }   
     async execute() {
-        this.changeStauts('progress')
+        this.changeStatus('progress')
         this._nodeValue = await Utils.executePythonCode(`${this.textarea.value}\nprint('ok')`)
 
         this.propagateValue(this._nodeValue)
-        this.changeStauts('success')
+        this.changeStatus('success')
     }
     async getNodeValue() {
         if (this._nodeValue == null) {
@@ -186,7 +186,7 @@ makeDraggableCanvas()
 class Main {
     static main() {
         // Blocks.createNode({ x: 10, y: 20 })
-        new ScriptBlock()
+        // new ScriptBlock()
         new DisplayBlock();
         // window.sendCode = (code) => Server.executePythonCode(code).then(console.log)
         // pin1 = addPin(node, 'input')
@@ -199,10 +199,13 @@ class Main {
         // const blockNode = Blocks.createTableNode({ x: 200, y: 200});
         // setInitialNodeTransform(blockNode)
         // nodes.push(blockNode)
-
+        setInterval(() => {
+            globalState.store()
+        }, 2000)
     }
 }
 
 Main.main()
+
 
 new EventSource('/esbuild').addEventListener('change', () => location.reload())

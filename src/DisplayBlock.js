@@ -8,7 +8,7 @@ export class DisplayBlock extends ExecutionNode {
     _target = null
     constructor() {
         super()
-        this.changeStauts('new')
+        this.changeStatus('new')
 
 
         const configureButton = document.createElement('button');
@@ -54,11 +54,19 @@ export class DisplayBlock extends ExecutionNode {
 
     async execute() {
         const { _displayBlock } = this;
-        this.changeStauts('progress')
+        this.changeStatus('progress')
         const inputPin = this._pins.find(p => p.type === 'input')
         const value = inputPin.value
         _displayBlock.textContent = value
-        this.changeStauts('success')
+        this.changeStatus('success')
+    }
+
+    toJSON() {
+        return {
+            x: this._position.x,
+            y: this._position.y,
+            title: this._title,
+        }
     }
 
 }

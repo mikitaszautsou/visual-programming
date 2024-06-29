@@ -1,9 +1,11 @@
 import { Blocks } from "./Blocks"
 import { Connection } from "./Connection"
+import { globalState } from "./GlobalState"
 import { Pin } from "./Pin"
 import { Utils } from "./Utils"
 
 export class ExecutionNode {
+    _title
     _position = null
     _htmlElement = null
     _titleElement = null
@@ -13,6 +15,7 @@ export class ExecutionNode {
     _pins = []
     constructor(title = 'unknown') {
         const node = Blocks.createNode({ x: 10, y: 10, title: title})
+        this._title = title
         this._position = { x: node.x, y: node.y }
         this._htmlElement = node.element
         this._titleElement = node.titleElement
@@ -24,9 +27,24 @@ export class ExecutionNode {
         })
         this._titleElement.style.width = '100%'
         this._titleElement.appendChild(buttonElement)
+        globalState.nodeObjects.push(this)
     }
 
-    changeStauts(status) {
+    toJSON() {
+        return {
+            x: this._position.x,
+            y: this._position.y,
+            title: this._title,
+        }
+    }
+
+    setPosition(x, y) {
+        this._position.y = x
+        this._position.y = y
+        this._htmlElement.style.transform = `translate(${x}px, ${y}px)`;
+    }
+
+    changeStatus(status) {
         if (status === 'success') {
             this._htmlElement.style.background = '#0D9276'
         } else if (status === 'new') {

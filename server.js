@@ -1,5 +1,6 @@
 import http from 'http';
 import { spawn } from 'child_process';
+import { readFileSync, writeFileSync } from 'fs';
 
 // Start a persistent Python process
 const pythonProcess = spawn('python', ['-i']);
@@ -25,6 +26,18 @@ const server = http.createServer((req, res) => {
     });
     
     req.on('end', () => {
+      console.log('url', req.url)
+      if (req.url === '/save') {
+        writeFileSync('store.json', body);
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({ status: 'ok' }));
+        return
+      } else if (req.url === '/load') {
+        
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(readFileSync('store.json'));
+        return
+      }
       // Send the received Python code to the Python process
       console.log('executing', body);
       pythonProcess.stdin.write(body + '\n');

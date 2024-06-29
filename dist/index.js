@@ -2,9 +2,35 @@
   // src/Utils.js
   var Utils = class _Utils {
     static async executePythonCode(value) {
-      const response = await fetch("http://localhost:3000", {
+      const response = await fetch("http://localhost:3000/execute", {
         method: "POST",
         body: value,
+        headers: {
+          "Content-Type": "text/plain"
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.text();
+    }
+    static async saveState(state) {
+      const response = await fetch("http://localhost:3000/save", {
+        method: "POST",
+        body: JSON.stringify(state, null, 2),
+        headers: {
+          "Content-Type": "text/plain"
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.text();
+    }
+    static async loadState(state) {
+      const response = await fetch("http://localhost:3000/load", {
+        method: "POST",
+        body: state,
         headers: {
           "Content-Type": "text/plain"
         }
@@ -180,8 +206,46 @@
     }
   };
 
+  // src/Pin.js
+  var Pin = class {
+    name;
+    type;
+    _pinBlock;
+    _pinCircle;
+    /**
+     * @type {ExecutionNode}
+     */
+    ownerNode;
+    value;
+    /**
+     * @type {HTMLElement}
+     */
+    _htmlElement;
+    /**
+     * @type {Array<Connection>}
+     */
+    connections = [];
+    /**
+     * 
+     * @param {ExecutionNode} node 
+     * @param {string} name 
+     * @param {'input' | 'output'}  type 
+     */
+    constructor(node, name, type) {
+      this.name = name;
+      this.type = type;
+      const { pinBlock, pinCircle } = Utils.addPin({ element: node._htmlElement }, type, name);
+      this._pinBlock = pinBlock;
+      this._pinCircle = pinCircle;
+      this.ownerNode = node;
+      this._htmlElement = pinCircle;
+      globalState.pins.push(this);
+    }
+  };
+
   // src/ExecutionNode.js
   var ExecutionNode = class {
+    _title;
     _position = null;
     _htmlElement = null;
     _titleElement = null;
@@ -191,6 +255,7 @@
     _pins = [];
     constructor(title = "unknown") {
       const node = Blocks.createNode({ x: 10, y: 10, title });
+      this._title = title;
       this._position = { x: node.x, y: node.y };
       this._htmlElement = node.element;
       this._titleElement = node.titleElement;
@@ -202,8 +267,21 @@
       });
       this._titleElement.style.width = "100%";
       this._titleElement.appendChild(buttonElement);
+      globalState.nodeObjects.push(this);
     }
-    changeStauts(status) {
+    toJSON() {
+      return {
+        x: this._position.x,
+        y: this._position.y,
+        title: this._title
+      };
+    }
+    setPosition(x, y) {
+      this._position.y = x;
+      this._position.y = y;
+      this._htmlElement.style.transform = `translate(${x}px, ${y}px)`;
+    }
+    changeStatus(status) {
       if (status === "success") {
         this._htmlElement.style.background = "#0D9276";
       } else if (status === "new") {
@@ -270,45 +348,11 @@
     }
   };
 
-  // src/Pin.js
-  var Pin = class {
-    name;
-    type;
-    _pinBlock;
-    _pinCircle;
-    /**
-     * @type {ExecutionNode}
-     */
-    ownerNode;
-    value;
-    /**
-     * @type {HTMLElement}
-     */
-    _htmlElement;
+  // src/GlobalState.js
+  var GlobalState = class {
     /**
      * @type {Array<Connection>}
      */
-    connections = [];
-    /**
-     * 
-     * @param {ExecutionNode} node 
-     * @param {string} name 
-     * @param {'input' | 'output'}  type 
-     */
-    constructor(node, name, type) {
-      this.name = name;
-      this.type = type;
-      const { pinBlock, pinCircle } = Utils.addPin({ element: node._htmlElement }, type, name);
-      this._pinBlock = pinBlock;
-      this._pinCircle = pinCircle;
-      this.ownerNode = node;
-      this._htmlElement = pinCircle;
-      globalState.pins.push(this);
-    }
-  };
-
-  // src/GlobalState.js
-  var GlobalState = class {
     connections = [];
     globalPosition = {
       x: 0,
@@ -316,10 +360,21 @@
     };
     globalZoom = 1;
     nodes = [];
+    /**
+    * @type {Array<ExecutionNode>}
+    */
+    nodeObjects = [];
     draggingPin = null;
     tempPath = null;
     /** @type {Array<Pin>} */
     pins = [];
+    async store() {
+      const stateObject = {
+        nodes: this.nodeObjects.map((n) => n.toJSON())
+      };
+      await Utils.saveState(stateObject);
+      console.log(stateObject);
+    }
   };
   var globalState = new GlobalState();
 
@@ -366,7 +421,7 @@
     _target = null;
     constructor() {
       super();
-      this.changeStauts("new");
+      this.changeStatus("new");
       const configureButton = document.createElement("button");
       configureButton.textContent = "C";
       this._titleElement.appendChild(configureButton);
@@ -391,47 +446,22 @@
     }
     async execute() {
       const { _displayBlock } = this;
-      this.changeStauts("progress");
+      this.changeStatus("progress");
       const inputPin = this._pins.find((p) => p.type === "input");
       const value = inputPin.value;
       _displayBlock.textContent = value;
-      this.changeStauts("success");
+      this.changeStatus("success");
+    }
+    toJSON() {
+      return {
+        x: this._position.x,
+        y: this._position.y,
+        title: this._title
+      };
     }
   };
 
   // src/index.js
-  var ScriptBlock = class extends ExecutionNode {
-    _nodeValue = null;
-    _textarea = null;
-    constructor() {
-      super();
-      this.changeStauts("new");
-      const textarea = document.createElement("textarea");
-      textarea.style.width = "90%";
-      textarea.style.height = "60px";
-      textarea.style.margin = "5px";
-      textarea.style.resize = "none";
-      this._textarea = textarea;
-      this._htmlElement.appendChild(textarea);
-      this.textarea = textarea;
-      this.addPin("output");
-      this._htmlElement.style.width = "150px";
-      this._htmlElement.style.height = "auto";
-    }
-    async execute() {
-      this.changeStauts("progress");
-      this._nodeValue = await Utils.executePythonCode(`${this.textarea.value}
-print('ok')`);
-      this.propagateValue(this._nodeValue);
-      this.changeStauts("success");
-    }
-    async getNodeValue() {
-      if (this._nodeValue == null) {
-        this._nodeValue = Utils.executePythonCode(this.textarea.value);
-      }
-      return this._nodeValue;
-    }
-  };
   function makeDraggableCanvas() {
     let isCanvasDragging = false;
     let startX, startY;
@@ -481,8 +511,10 @@ print('ok')`);
   makeDraggableCanvas();
   var Main = class {
     static main() {
-      new ScriptBlock();
       new DisplayBlock();
+      setInterval(() => {
+        globalState.store();
+      }, 2e3);
     }
   };
   Main.main();

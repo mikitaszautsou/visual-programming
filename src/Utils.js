@@ -4,7 +4,7 @@ import { globalState } from "./GlobalState";
 export class Utils {
     static async executePythonCode(value) {
 
-        const response = await fetch('http://localhost:3000', {
+        const response = await fetch('http://localhost:3000/execute', {
             method: 'POST',
             body: value,
             headers: {
@@ -19,6 +19,42 @@ export class Utils {
 
         return response.text()  
     }
+    static async saveState(state) {
+
+        const response = await fetch('http://localhost:3000/save', {
+            method: 'POST',
+            body: JSON.stringify(state, null, 2),
+            headers: {
+                'Content-Type': 'text/plain'
+            }
+        });
+        
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        return response.text()  
+    }
+    static async loadState(state) {
+
+        const response = await fetch('http://localhost:3000/load', {
+            method: 'POST',
+            body: state,
+            headers: {
+                'Content-Type': 'text/plain'
+            }
+        });
+        
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        return response.text()  
+    }
+    
+
     static updateConnection(connection) {
         const { pin1, pin2, path } = connection;
         const rect1 = pin1.getBoundingClientRect();
